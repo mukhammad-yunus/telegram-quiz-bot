@@ -307,13 +307,33 @@ Send /stop to stop it.`;
     const options = questionData.options;
     const correctOptionId = questionData.correct_option;
     try {
-      await ctx.telegram.sendPoll(ctx.chat.id, questionText, options, {
-        type: "quiz",
-        correct_option_id: correctOptionId,
-        is_anonymous: false,
-        explanation: questionData.explanation || undefined,
-        open_period: session.currentQuiz.timer_seconds || 60,
-      });
+      // If question is too long, send it as a separate message first
+      if (questionData.question.length >= 300) {
+        await ctx.telegram.sendMessage(
+          ctx.chat.id,
+          `<b>${questionNumber}</b> ${questionData.question}`,
+          { parse_mode: "HTML" }
+        );
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      // Send the poll with modified question text if needed
+      await ctx.telegram.sendPoll(
+        ctx.chat.id,
+        questionData.question.length >= 300
+          ? `${questionNumber} Question provided above`
+          : questionText,
+        options,
+        {
+          type: "quiz", 
+          correct_option_id: correctOptionId,
+          is_anonymous: false,
+          explanation: questionData.explanation && questionData.explanation.length < 200
+            ? questionData.explanation
+            : undefined,
+          open_period: session.currentQuiz.timer_seconds || 60,
+        }
+      );
     } catch (err) {
       console.error("Failed to send quiz question:", err);
       await ctx.reply("⚠️ Failed to send quiz.");

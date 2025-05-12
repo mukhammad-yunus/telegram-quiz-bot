@@ -43,9 +43,9 @@ function validateQuizJson(jsonData) {
       // Validate question text
       if (!question.text || typeof question.text !== "string") {
         questionErrors.push("missing or invalid 'text' field");
-      } else if (question.text.length > 300) {
-        questionErrors.push("question text exceeds 300 characters");
-      }
+      } //else if (question.text.length > 300) {
+      //  questionErrors.push("question text exceeds 300 characters");
+      //}
 
       // Validate options
       if (!Array.isArray(question.options)) {
