@@ -23,11 +23,21 @@ A Telegram bot that allows users to create, manage, and take quizzes. The bot su
    ```bash
    npm install
    ```
-3. Create a `.env` file with your Telegram bot token:
+3. Create a `.env` file with the following configuration:
    ```
+   # Telegram Bot Token
    BOT_TOKEN=your_bot_token_here
+
+   # PostgreSQL Database Configuration
+   DB_USER=your_postgres_user
+   DB_PASSWORD=your_postgres_password
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=your_database_name
    ```
-4. Start the bot:
+4. Make sure PostgreSQL is installed and running on your system
+5. Create a database with the name specified in DB_NAME
+6. Start the bot:
    ```bash
    npm start
    ```
