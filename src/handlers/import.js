@@ -59,9 +59,9 @@ function validateQuizJson(jsonData) {
         question.options.forEach((option, optIndex) => {
           if (typeof option !== "string") {
             questionErrors.push(`option ${optIndex + 1} is not a string`);
-          } else if (option.length > 100) {
+          } /*else if (option.length > 100) {
             questionErrors.push(`option ${optIndex + 1} exceeds 100 characters`);
-          }
+          }*/
         });
       }
 

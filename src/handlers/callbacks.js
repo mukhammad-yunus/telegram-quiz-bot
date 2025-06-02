@@ -41,7 +41,7 @@ const handleCallback = async (ctx) => {
 
       sessionService.updateSession(userId, {
         quizzes: makeChunkArray(quizzes, 5),
-        currentChunkArrayIndex: 0
+        currentChunkArrayIndex: 0,
       });
 
       handleDisplayQuizzes(ctx, true);
@@ -52,8 +52,13 @@ const handleCallback = async (ctx) => {
       // Get quizzes in this folder that the user has responses for
       const quizzes = await dbService.listQuizzes(folderId, userId);
       // Filter quizzes to only those the user has responses for
-      const quizIdsWithResponses = (await dbService.getQuizIdsWithResponses(userId, folderId));
-      const filteredQuizzes = quizzes.filter(q => quizIdsWithResponses.includes(q.id));
+      const quizIdsWithResponses = await dbService.getQuizIdsWithResponses(
+        userId,
+        folderId
+      );
+      const filteredQuizzes = quizzes.filter((q) =>
+        quizIdsWithResponses.includes(q.id)
+      );
       if (!filteredQuizzes.length) {
         return await ctx.editMessageText(
           "📭 No solved quizzes in this folder yet.\n\nTry another folder!"
@@ -61,11 +66,11 @@ const handleCallback = async (ctx) => {
       }
       sessionService.updateSession(userId, {
         quizzes: filteredQuizzes,
-        stage: "review_select_quiz"
+        stage: "review_select_quiz",
       });
       // Show quizzes to select
       const buttons = filteredQuizzes.map((quiz, idx) => [
-        Markup.button.callback(quiz.title, `review_select_quiz_${quiz.id}`)
+        Markup.button.callback(quiz.title, `review_select_quiz_${quiz.id}`),
       ]);
       return ctx.editMessageText(
         "📝 Select a quiz to review your answers:",
@@ -76,7 +81,7 @@ const handleCallback = async (ctx) => {
     sessionService.updateSession(userId, {
       folderId,
       stage: "awaiting_quiz_title",
-      quizTitle: ""
+      quizTitle: "",
     });
 
     ctx.editMessageText(
@@ -88,7 +93,7 @@ const handleCallback = async (ctx) => {
     const folderId = parseInt(data.replace("f_i_", ""));
     sessionService.updateSession(userId, {
       folderId,
-      stage: "awaiting_json_file"
+      stage: "awaiting_json_file",
     });
 
     ctx.editMessageText(
@@ -97,32 +102,35 @@ const handleCallback = async (ctx) => {
         null,
         2
       )}\n\`\`\``,
-      { 
+      {
         parse_mode: "MarkdownV2",
         reply_markup: {
           inline_keyboard: [
-            [Markup.button.callback("❌ Cancel", "cancel_import")]
-          ]
-        }
+            [Markup.button.callback("❌ Cancel", "cancel_import")],
+          ],
+        },
       }
     );
   }
 
   if (data.startsWith("select_quiz_")) {
     const quizIndex = parseInt(data.replace("select_quiz_", ""));
-    const currentQuiz = session.quizzes[session.currentChunkArrayIndex][quizIndex];
+    const currentQuiz =
+      session.quizzes[session.currentChunkArrayIndex][quizIndex];
     const quizId = currentQuiz.id;
 
     sessionService.updateSession(userId, {
       currentQuiz,
-      stage: "view_quiz"
+      stage: "view_quiz",
     });
 
     const questions = await dbService.getQuizById(quizId);
     sessionService.updateSession(userId, { questions });
 
     const numberOfQuestions = questions.length;
-    const quizDetails = `<b>Quiz Title</b>: ${currentQuiz.title}\n<b>Description</b>: ${
+    const quizDetails = `<b>Quiz Title</b>: ${
+      currentQuiz.title
+    }\n<b>Description</b>: ${
       currentQuiz.description || "No description"
     }\n\n<b>Questions</b>:\n${numberOfQuestions} ${
       numberOfQuestions > 1
@@ -186,7 +194,9 @@ const handleCallback = async (ctx) => {
 
       sessionService.resetSession(userId);
       await ctx.reply(
-        `🎉 Quiz "${quiz.title}" created successfully with ${questionCount} question${
+        `🎉 Quiz "${
+          quiz.title
+        }" created successfully with ${questionCount} question${
           questionCount > 1 ? "s" : ""
         }!`
       );
@@ -201,7 +211,7 @@ const handleCallback = async (ctx) => {
   if (data === "next_quiz") {
     if (!session.quizzes) return;
     sessionService.updateSession(userId, {
-      currentChunkArrayIndex: session.currentChunkArrayIndex + 1
+      currentChunkArrayIndex: session.currentChunkArrayIndex + 1,
     });
     handleDisplayQuizzes(ctx, true);
   }
@@ -213,7 +223,7 @@ const handleCallback = async (ctx) => {
     }
 
     sessionService.updateSession(userId, {
-      currentChunkArrayIndex: session.currentChunkArrayIndex - 1
+      currentChunkArrayIndex: session.currentChunkArrayIndex - 1,
     });
     handleDisplayQuizzes(ctx, true);
   }
@@ -233,7 +243,7 @@ const handleCallback = async (ctx) => {
 
     sessionService.updateSession(userId, {
       stage: "start_quiz",
-      currentQuestionIndex: 0
+      currentQuestionIndex: 0,
     });
 
     const currentQuiz = session.currentQuiz;
@@ -304,17 +314,34 @@ Send /stop to stop it.`;
     const questionNumber = sessionService.getCurrentQuestionNumber(ctx.from.id);
     const questionData = session.questions[session.currentQuestionIndex];
     const questionText = `${questionNumber} ${questionData.question}`;
-    const options = questionData.options;
+    let options = questionData.options;
     const correctOptionId = questionData.correct_option;
     try {
-      // If question is too long, send it as a separate message first
-      if (questionData.question.length >= 300) {
+      // Check if any option is too long
+      const isOptionsTooLong = options.some((option) => option.length >= 100);
+      // If questionText is too long, send it as a separate message first
+      if (questionData.question.length >= 300 || isOptionsTooLong) {
+        const length = options.length;
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+        const newOptions = options.map((option, index) => {
+          return `<b>${letters[index]}.</b> ${option}`;
+        });
+
+        // Update options array directly to just the labels (A, B, C, ...)
+        for (let i = 0; i < length; i++) {
+          options[i] = `${letters[i]}`;
+        }
+
         await ctx.telegram.sendMessage(
           ctx.chat.id,
-          `<b>${questionNumber}</b> ${questionData.question}`,
+          `<b>${questionNumber}</b> ${
+            questionData.question
+          }\n\nOptions:\n${newOptions.join("\n")}`,
           { parse_mode: "HTML" }
         );
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // Send the poll with modified question text if needed
@@ -325,12 +352,13 @@ Send /stop to stop it.`;
           : questionText,
         options,
         {
-          type: "quiz", 
+          type: "quiz",
           correct_option_id: correctOptionId,
           is_anonymous: false,
-          explanation: questionData.explanation && questionData.explanation.length < 200
-            ? questionData.explanation
-            : undefined,
+          explanation:
+            questionData.explanation && questionData.explanation.length < 200
+              ? questionData.explanation
+              : undefined,
           open_period: session.currentQuiz.timer_seconds || 60,
         }
       );
@@ -342,7 +370,10 @@ Send /stop to stop it.`;
     }
   }
 
-  if (data.startsWith("review_select_quiz_") && session.stage === "review_select_quiz") {
+  if (
+    data.startsWith("review_select_quiz_") &&
+    session.stage === "review_select_quiz"
+  ) {
     const quizId = parseInt(data.replace("review_select_quiz_", ""));
     // Get all questions for this quiz
     const questions = await dbService.getQuestionsByQuiz(quizId);
@@ -353,7 +384,10 @@ Send /stop to stop it.`;
     }
 
     // Send a header message
-    await ctx.editMessageText("<b>Quiz Review</b>\n\nReviewing your answers...", { parse_mode: "HTML" });
+    await ctx.editMessageText(
+      "<b>Quiz Review</b>\n\nReviewing your answers...",
+      { parse_mode: "HTML" }
+    );
 
     // Helper function to escape special characters
     const escapeHtml = (text) => {
@@ -373,27 +407,30 @@ Send /stop to stop it.`;
     // Send each question and answer separately
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      const resp = responses.find(r => r.question_id === q.id);
+      const resp = responses.find((r) => r.question_id === q.id);
       if (!resp) continue;
 
-      const questionMsg = `<b>Q${i+1}</b>: ${escapeHtml(q.question)}\n` +
+      const questionMsg =
+        `<b>Q${i + 1}</b>: ${escapeHtml(q.question)}\n` +
         `<b>Your answer</b>: ${escapeHtml(q.options[resp.selected_index])}\n` +
-        `<b>Result</b>: ${resp.is_correct ? '✅ Correct' : '❌ Wrong'}\n` +
-        (q.explanation ? `<b>Explanation</b>: ${escapeHtml(q.explanation)}\n` : '');
+        `<b>Result</b>: ${resp.is_correct ? "✅ Correct" : "❌ Wrong"}\n` +
+        (q.explanation
+          ? `<b>Explanation</b>: ${escapeHtml(q.explanation)}\n`
+          : "");
 
       // Add a small delay between messages to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await ctx.reply(questionMsg, { parse_mode: "HTML" });
     }
 
     // Send a summary message
-    const correctAnswers = responses.filter(r => r.is_correct).length;
+    const correctAnswers = responses.filter((r) => r.is_correct).length;
     const totalQuestions = responses.length;
     await ctx.reply(
       `<b>Quiz Summary</b>\n\n` +
-      `Total Questions: ${totalQuestions}\n` +
-      `Correct Answers: ${correctAnswers}\n` +
-      `Score: ${correctAnswers}/${totalQuestions}`,
+        `Total Questions: ${totalQuestions}\n` +
+        `Correct Answers: ${correctAnswers}\n` +
+        `Score: ${correctAnswers}/${totalQuestions}`,
       { parse_mode: "HTML" }
     );
     return;
@@ -414,7 +451,9 @@ Send /stop to stop it.`;
       await ctx.editMessageText("✅ Folder deleted successfully!");
     } catch (err) {
       console.error("Error deleting folder:", err);
-      await ctx.editMessageText("⚠️ Failed to delete folder. Please try again later.");
+      await ctx.editMessageText(
+        "⚠️ Failed to delete folder. Please try again later."
+      );
     }
   }
 };
@@ -422,4 +461,3 @@ Send /stop to stop it.`;
 module.exports = {
   handleCallback,
 };
- 
