@@ -269,7 +269,7 @@ ${timerMessage} per question
 Send /stop to stop it.`;
 
     // Send the message with HTML formatting
-    await ctx.reply(quizMessage, {
+    await ctx.editMessageText(quizMessage, {
       parse_mode: "HTML",
       ...Markup.inlineKeyboard([
         Markup.button.callback("I am ready!", "i_am_ready"),
