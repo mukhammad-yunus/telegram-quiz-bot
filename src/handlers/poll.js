@@ -99,44 +99,60 @@ const handlePollAnswer = async (ctx) => {
   }
 
   // Send next question using the stored chat ID
-  const questionNumber = sessionService.getCurrentQuestionNumber(userId);
-  const nextQuestion = session.questions[session.currentQuestionIndex];
-
+  const questionNumber = sessionService.getCurrentQuestionNumber(ctx.from.id);
+  const questionData = session.questions[session.currentQuestionIndex];
+  const questionText = `${questionNumber} ${questionData.question}`;
+  let options = questionData.options;
+  const correctOptionId = questionData.correct_option;
   try {
-    // Delay sending the next question by 0.5 seconds
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Check if any option is too long
+    const isOptionsTooLong = options.some((option) => option.length >= 100);
+    // If questionText is too long, send it as a separate message first
+    if (questionData.question.length >= 300 || isOptionsTooLong) {
+      const length = options.length;
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    // If question is too long, send it as a separate message first
-    if (nextQuestion.question.length >= 300) {
+      const newOptions = options.map((option, index) => {
+        return `<b>${letters[index]}.</b> ${option}`;
+      });
+
+      // Update options array directly to just the labels (A, B, C, ...)
+      for (let i = 0; i < length; i++) {
+        options[i] = `${letters[i]}`;
+      }
+
       await ctx.telegram.sendMessage(
         session.chatId,
-        nextQuestion.question
+        `<b>${questionNumber}</b> ${
+          questionData.question
+        }\n\nOptions:\n${newOptions.join("\n")}`,
+        { parse_mode: "HTML" }
       );
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     // Send the poll with modified question text if needed
     await ctx.telegram.sendPoll(
       session.chatId,
-      nextQuestion.question.length >= 300 
+      questionData.question.length >= 300 || isOptionsTooLong
         ? `${questionNumber} Question provided above`
-        : `${questionNumber} ${nextQuestion.question}`,
-      nextQuestion.options,
+        : questionText,
+      options,
       {
         type: "quiz",
-        correct_option_id: nextQuestion.correct_option,
+        correct_option_id: correctOptionId,
         is_anonymous: false,
-        explanation: nextQuestion.explanation && nextQuestion.explanation.length < 200 
-          ? nextQuestion.explanation 
-          : undefined,
+        explanation:
+          questionData.explanation && questionData.explanation.length < 200
+            ? questionData.explanation
+            : undefined,
         open_period: session.currentQuiz.timer_seconds || 60,
       }
     );
   } catch (err) {
-    console.error("Failed to send next question:", err);
-    await ctx.telegram.sendMessage(
-      session.chatId,
-      "⚠️ Failed to send next question."
-    );
+    console.error("Failed to send quiz question:", err);
+    await ctx.telegram.sendMessage(session.chatId, "⚠️ Failed to send quiz.");
   }
 };
 
